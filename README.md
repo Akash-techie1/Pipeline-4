@@ -6,11 +6,11 @@ This repository contains the source code for a task service and a Jenkins pipeli
 **Overview**
    * The included Jenkinsfile defines a continuous integration and delivery (CI/CD) pipeline for the task service. The pipeline * 
     
-      --Checks out the code from the main branch.
+     --Checks out the code from the main branch.
       
-      --Builds the project using Maven.
+     --Builds the project using Maven.
       
-      --Runs unit tests and archives test reports.
+     --Runs unit tests and archives test reports.
       
       --Builds a Docker image tagged with the build number.
       
