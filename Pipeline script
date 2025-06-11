@@ -1,0 +1,84 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-creds')
+        DOCKER_IMAGE = "your-dockerhub-username/task-service"
+        VERSION = "${env.BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', 
+                url: 'https://github.com/your-username/task-service.git'
+                clean: true
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+            }
+        }
+
+        stage('Unit Tests') {
+            steps {
+                sh 'mvn test'
+                junit 'target/surefire-reports/*.xml'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                script {
+                    docker.build("${DOCKER_IMAGE}:${VERSION}")
+                }
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', DOCKER_HUB_CREDENTIALS) {
+                        docker.image("${DOCKER_IMAGE}:${VERSION}").push()
+                        docker.image("${DOCKER_IMAGE}:latest").push()
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Dev') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh """
+                docker stop task-service-dev || true
+                docker rm task-service-dev || true
+                docker run -d \
+                  -p 8080:8080 \
+                  --name task-service-dev \
+                  ${DOCKER_IMAGE}:${VERSION}
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            slackSend(color: 'good', 
+                    message: "SUCCESS: Build ${env.BUILD_NUMBER} deployed ${DOCKER_IMAGE}:${VERSION}")
+        }
+        failure {
+            slackSend(color: 'danger', 
+                    message: "FAILED: Build ${env.BUILD_NUMBER}")
+        }
+    }
+}
